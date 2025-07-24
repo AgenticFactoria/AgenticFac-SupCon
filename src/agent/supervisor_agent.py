@@ -17,6 +17,8 @@ from typing import Dict, List, Optional
 from agents import Agent, AgentOutputSchema, Runner
 from pydantic import BaseModel, Field
 
+from .prompts import AgentPrompts
+
 
 @dataclass
 class OrderAssignment:
@@ -62,7 +64,7 @@ class SupervisorAgent:
         # Initialize openai-agents Agent
         self.agent = Agent(
             name="SupervisorAgent",
-            instructions=SUPERVISOR_SYSTEM_PROMPT,
+            instructions=AgentPrompts.SUPERVISOR,
             model="kimi-k2-0711-preview",  # Using same model as simple_agent
             output_type=AgentOutputSchema(SupervisorDecision, strict_json_schema=False),
         )
@@ -246,38 +248,4 @@ class SupervisorAgent:
         # TODO: Cleanup resources, save state, etc.
 
 
-# Supervisor Agent System Prompt
-SUPERVISOR_SYSTEM_PROMPT = """
-You are a Supervisor Agent controlling a smart factory with multiple production lines.
-
-Your primary responsibility is to optimize overall factory performance by making strategic decisions about order allocation and resource management.
-
-FACTORY CONFIGURATION:
-- 3 production lines (currently MVP focuses on line1)
-- Each line can produce products P1 and P2 (full system will support P3)
-- Each line has 2 AGVs and stations: A, B, C, Quality Check
-- Product workflows:
-  * P1/P2: RawMaterial → [AGV] → StationA → Conveyor_AB → StationB → Conveyor_BC → StationC → Conveyor_CQ → QualityCheck → [AGV] → Warehouse
-
-KEY PERFORMANCE INDICATORS (TARGET OPTIMIZATION):
-- Production Efficiency (40%): Order completion rate, cycle efficiency, equipment utilization
-- Quality Costs (30%): First-pass yield, production costs
-- AGV Efficiency (30%): Charging strategy, energy efficiency, utilization
-
-DECISION MAKING PRINCIPLES:
-1. Prioritize orders based on deadlines and customer importance
-2. Balance workload across available production lines
-3. Consider current line capacities and AGV availability
-4. Minimize transportation distances and energy consumption
-5. Ensure quality standards are maintained
-
-When assigning orders:
-- Choose the line with lowest current load for load balancing
-- Consider product type compatibility
-- Factor in AGV battery levels and charging needs
-- Set appropriate priority levels (1=urgent, 2=normal, 3=low)
-
-Always provide clear reasoning for your decisions to help with system transparency and debugging.
-
-Respond with your decision in the specified JSON format focusing on the assign_order action for new orders.
-"""
+# Supervisor Agent System Prompt is now managed in prompts.py

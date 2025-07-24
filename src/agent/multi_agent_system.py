@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.settings import MQTT_BROKER_HOST, MQTT_BROKER_PORT
+from config.agent_config import get_mqtt_config
 from src.utils.mqtt_client import MQTTClient
 from src.utils.topic_manager import TopicManager
 
@@ -65,8 +65,9 @@ class MultiAgentFactoryController:
         self.root_topic = root_topic
         self.topic_manager = TopicManager(root_topic)
         self.client_id = f"{root_topic}_multi_agent_controller"
+        mqtt_config = get_mqtt_config()
         self.mqtt_client = MQTTClient(
-            MQTT_BROKER_HOST, MQTT_BROKER_PORT, self.client_id
+            mqtt_config.host, mqtt_config.port, self.client_id
         )
 
         # Global factory state

@@ -1,37 +1,42 @@
+import asyncio
+import json
+import logging
 import os
 import sys
-import json
 import time
-import logging
-import asyncio
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Assuming 'agents' is a new library provided by the user.
 # If this causes an error, the user needs to install it.
 from agents import Agent, AgentOutputSchema, Runner
+from dotenv import load_dotenv
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from config.schemas import AgentCommand
+from config.settings import MQTT_BROKER_HOST, MQTT_BROKER_PORT
+from src.agent.prompts import AgentPrompts
 from src.utils.mqtt_client import MQTTClient
 from src.utils.topic_manager import TopicManager
-from config.settings import MQTT_BROKER_HOST, MQTT_BROKER_PORT
-from config.schemas import AgentCommand
-from src.agent.prompt import SYSTEM_PROMPT
 
 # Configure logger
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 class SimpleAgent:
     def __init__(self, root_topic):
         self.topic_manager = TopicManager(root_topic)
         self.client_id = f"{root_topic}_simple_agent"
-        self.mqtt_client = MQTTClient(MQTT_BROKER_HOST, MQTT_BROKER_PORT, self.client_id)
+        self.mqtt_client = MQTTClient(
+            MQTT_BROKER_HOST, MQTT_BROKER_PORT, self.client_id
+        )
         self.agent = Agent(
             name="FactoryControlAgent",
-            instructions=SYSTEM_PROMPT,
+            instructions=AgentPrompts.SIMPLE_AGENT,
             model="kimi-k2-0711-preview",
             output_type=AgentOutputSchema(AgentCommand, strict_json_schema=False),
         )
@@ -54,13 +59,13 @@ class SimpleAgent:
         if "orders" not in topic:
             return
 
-        line_id = "line1" # Defaulting to line1 for MVP
+        line_id = "line1"  # Defaulting to line1 for MVP
         user_prompt = self.create_prompt(message)
 
         try:
             logging.info("Running agent with new message...")
             result = await Runner.run(self.agent, input=user_prompt)
-            
+
             response_content = ""
             if result is None:
                 logging.error("Agent returned no result.")
@@ -74,7 +79,11 @@ class SimpleAgent:
                 logging.info(f"Extracted command: {response_content}")
                 command_topic = self.topic_manager.get_agent_command_topic(line_id)
                 # Convert AgentCommand object to dict for JSON serialization
-                command_dict = response_content.model_dump() if hasattr(response_content, 'model_dump') else response_content.__dict__
+                command_dict = (
+                    response_content.model_dump()
+                    if hasattr(response_content, "model_dump")
+                    else response_content.__dict__
+                )
                 self.mqtt_client.publish(command_topic, json.dumps(command_dict))
                 logging.info(f"Published command to {command_topic}")
             else:
@@ -82,7 +91,6 @@ class SimpleAgent:
 
         except Exception as e:
             logging.error(f"Failed to process message with agent: {e}")
-
 
     def create_prompt(self, message: dict) -> str:
         """Creates a user prompt for the LLM based on the incoming message."""
@@ -96,23 +104,37 @@ class SimpleAgent:
 
     def run(self):
         self.mqtt_client.connect()
-        
+
         root_topic = self.topic_manager.root
         # Subscribe to all relevant topics
         for line in ["line1", "line2", "line3"]:
-            self.mqtt_client.subscribe(f"{root_topic}/{line}/station/+/status", self.on_message)
-            self.mqtt_client.subscribe(f"{root_topic}/{line}/agv/+/status", self.on_message)
-            self.mqtt_client.subscribe(f"{root_topic}/{line}/conveyor/+/status", self.on_message)
+            self.mqtt_client.subscribe(
+                f"{root_topic}/{line}/station/+/status", self.on_message
+            )
+            self.mqtt_client.subscribe(
+                f"{root_topic}/{line}/agv/+/status", self.on_message
+            )
+            self.mqtt_client.subscribe(
+                f"{root_topic}/{line}/conveyor/+/status", self.on_message
+            )
             self.mqtt_client.subscribe(f"{root_topic}/{line}/alerts", self.on_message)
-            self.mqtt_client.subscribe(self.topic_manager.get_agent_response_topic(line), self.on_message)
+            self.mqtt_client.subscribe(
+                self.topic_manager.get_agent_response_topic(line), self.on_message
+            )
 
         self.mqtt_client.subscribe(f"{root_topic}/warehouse/+/status", self.on_message)
-        self.mqtt_client.subscribe(self.topic_manager.get_order_topic(), self.on_message)
+        self.mqtt_client.subscribe(
+            self.topic_manager.get_order_topic(), self.on_message
+        )
         self.mqtt_client.subscribe(self.topic_manager.get_kpi_topic(), self.on_message)
-        self.mqtt_client.subscribe(self.topic_manager.get_result_topic(), self.on_message)
+        self.mqtt_client.subscribe(
+            self.topic_manager.get_result_topic(), self.on_message
+        )
 
-        logging.info(f"Agent is running and subscribed to all topics under {root_topic}")
-        
+        logging.info(
+            f"Agent is running and subscribed to all topics under {root_topic}"
+        )
+
         try:
             while True:
                 time.sleep(1)
@@ -121,15 +143,14 @@ class SimpleAgent:
         finally:
             self.mqtt_client.disconnect()
 
+
 def main():
-    import os
-    from dotenv import load_dotenv
+    from agents import (
+        set_default_openai_api,
+        set_default_openai_client,
+        set_tracing_disabled,
+    )
     from openai import AsyncOpenAI
-    from agents import set_default_openai_client
-    from agents import set_tracing_disabled
-    from agents import set_default_openai_api
-
-
 
     load_dotenv()
 
@@ -140,16 +161,16 @@ def main():
     set_default_openai_client(custom_client)
     set_default_openai_api("chat_completions")
 
-    
     root_topic = (
         os.getenv("TOPIC_ROOT")
         or os.getenv("USERNAME")
         or os.getenv("USER")
         or "NLDF_AGENT_TEST"
     )
-    
+
     agent = SimpleAgent(root_topic)
     agent.run()
+
 
 if __name__ == "__main__":
     main()
