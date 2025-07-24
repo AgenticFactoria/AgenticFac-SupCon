@@ -11,6 +11,8 @@ dependencies = [
     "numpy",
     "psutil",
     "python-dotenv>=1.1.1",
+    "openai-agents>=0.2.3",
+    "mypy>=1.17.0",
 ]
 requires-python = ">=3.9"
 
