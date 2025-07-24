@@ -114,6 +114,7 @@ if __name__ == "__main__":
             print("   Full multi-line support coming in future releases")
 
         # Start the multi-agent system
+        print("🔧 Initializing multi-agent factory control system...")
         main()
 
     except KeyboardInterrupt:

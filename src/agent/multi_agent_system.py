@@ -11,11 +11,12 @@ import json
 import logging
 import os
 import sys
-import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List
+from queue import Queue
+from typing import Any, Dict, List, Optional
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -40,10 +41,10 @@ class AgentRole(Enum):
 class FactoryState:
     """Maintains the current state of the factory"""
 
-    orders: List[Dict] = None
-    kpi_metrics: Dict = None
-    line_states: Dict[str, Dict] = None  # line_id -> line_state
-    warehouse_status: Dict = None
+    orders: Optional[List[Dict]] = None
+    kpi_metrics: Optional[Dict] = None
+    line_states: Optional[Dict[str, Dict]] = None  # line_id -> line_state
+    warehouse_status: Optional[Dict] = None
 
     def __post_init__(self):
         if self.orders is None:
@@ -76,6 +77,12 @@ class MultiAgentFactoryController:
         # Agent instances
         self.supervisor_agent = None
         self.line_commanders: Dict[str, Any] = {}  # line_id -> agent
+
+        # Event loop management
+        self.loop = None
+        self.message_queue = Queue()
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.running = False
 
         # Configure logging
         logging.basicConfig(
@@ -112,15 +119,59 @@ class MultiAgentFactoryController:
 
     def start_system(self):
         """Start the multi-agent system"""
+        self.running = True
+
+        # Get or create event loop
+        try:
+            self.loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+
+        # Start message processing task
+        self.loop.create_task(self._message_processor())
+
+        # Connect MQTT and setup subscriptions
         self.mqtt_client.connect()
         self._setup_mqtt_subscriptions()
 
         # Start all agents
-        self.supervisor_agent.start()
+        if self.supervisor_agent:
+            self.supervisor_agent.start()
         for line_commander in self.line_commanders.values():
             line_commander.start()
 
         self.logger.info("Multi-agent factory system started successfully")
+
+    async def _message_processor(self):
+        """Process queued messages asynchronously"""
+        while self.running:
+            try:
+                # Check for new messages every 100ms
+                await asyncio.sleep(0.1)
+
+                # Process all queued messages
+                while not self.message_queue.empty():
+                    topic, message = self.message_queue.get()
+                    await self._process_message_async(topic, message)
+
+            except Exception as e:
+                self.logger.error(f"Error in message processor: {e}")
+
+    async def _process_message_async(self, topic: str, message: Dict):
+        """Process a single message asynchronously"""
+        try:
+            self.logger.info(f"Processing async message on {topic}: {message}")
+
+            # Update factory state
+            self._update_factory_state(topic, message)
+
+            # Route to supervisor agent
+            if self.supervisor_agent:
+                await self.supervisor_agent.handle_message(topic, message)
+
+        except Exception as e:
+            self.logger.error(f"Error processing async message: {e}")
 
     def _setup_mqtt_subscriptions(self):
         """Setup MQTT subscriptions for global coordination"""
@@ -139,35 +190,30 @@ class MultiAgentFactoryController:
         )
 
     def _on_global_message(self, topic: str, payload: bytes):
-        """Handle global messages and route to appropriate agents"""
+        """Handle global messages and route to appropriate agents (thread-safe)"""
         try:
             message = json.loads(payload.decode())
             self.logger.info(f"Received global message on {topic}: {message}")
 
-            # Update factory state
-            self._update_factory_state(topic, message)
-
-            # Route to supervisor agent
-            if self.supervisor_agent:
-                asyncio.create_task(
-                    self.supervisor_agent.handle_message(topic, message)
-                )
+            # Queue message for async processing
+            self.message_queue.put((topic, message))
 
         except Exception as e:
             self.logger.error(f"Error handling global message: {e}")
 
     def _update_factory_state(self, topic: str, message: Dict):
         """Update the global factory state"""
-        if "orders" in topic:
+        if "orders" in topic and self.factory_state.orders is not None:
             self.factory_state.orders.append(message)
-        elif "kpi" in topic:
+        elif "kpi" in topic and self.factory_state.kpi_metrics is not None:
             self.factory_state.kpi_metrics.update(message)
-        elif "warehouse" in topic:
+        elif "warehouse" in topic and self.factory_state.warehouse_status is not None:
             self.factory_state.warehouse_status.update(message)
 
     def shutdown(self):
         """Shutdown the multi-agent system"""
         self.logger.info("Shutting down multi-agent system...")
+        self.running = False
 
         # Stop all agents
         if self.supervisor_agent:
@@ -176,12 +222,17 @@ class MultiAgentFactoryController:
         for line_commander in self.line_commanders.values():
             line_commander.stop()
 
+        # Disconnect MQTT
         self.mqtt_client.disconnect()
+
+        # Shutdown executor
+        self.executor.shutdown(wait=False)
+
         self.logger.info("Multi-agent system shutdown complete")
 
 
-def main():
-    """Main entry point for the multi-agent system"""
+async def async_main():
+    """Async main entry point for the multi-agent system"""
     # Setup agent environment
     from agents import (
         set_default_openai_api,
@@ -224,13 +275,28 @@ def main():
         )
         print("🚀 System is running... Press Ctrl+C to stop")
 
-        while True:
-            time.sleep(1)
+        # Run until interrupted
+        while controller.running:
+            await asyncio.sleep(1)
 
     except KeyboardInterrupt:
         print("\n🛑 Received shutdown signal")
     finally:
         controller.shutdown()
+
+
+def main():
+    """Main entry point for the multi-agent system"""
+    try:
+        # Run the async main function
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        print("\n🛑 Multi-Agent Factory System stopped by user")
+    except Exception as e:
+        print(f"\n❌ Failed to start Multi-Agent Factory System: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
