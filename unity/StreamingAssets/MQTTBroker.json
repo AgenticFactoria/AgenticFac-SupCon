@@ -28,7 +28,7 @@
   "wss": {
     "port": 8084,
     "host": "supos-ce-instance4.supos.app",
-    "client_id": "yangzhi",
+    "client_id": "AgenticFactoria",
     "username": "",
     "password": "",
     "keep_alive": 60,
@@ -40,7 +40,7 @@
   },
 
   "common_topic": {
-    "Root_Topic_Head": "NLDF_TEST"
+    "Root_Topic_Head": "AgenticFactoria"
   },
   "connect_mode": { "wss": true }
 }
