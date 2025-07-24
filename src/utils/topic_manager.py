@@ -1,12 +1,13 @@
 # src/utils/topic_manager.py
-import os
 from typing import Dict, Optional
+
 
 class TopicManager:
     """
     Manages the generation of all MQTT topics for the simulation.
     It ensures a consistent topic structure based on a root name.
     """
+
     def __init__(self, player_name: str):
         """
         Initializes the TopicManager with a root topic name.
@@ -44,11 +45,11 @@ class TopicManager:
     def get_fault_alert_topic(self, line_id: str) -> str:
         """Generates topic for fault alerts."""
         return f"{self.root}/{line_id}/alerts"
-        
+
     def get_kpi_topic(self) -> str:
         """Generates topic for factory-wide KPI updates."""
         return f"{self.root}/kpi/status"
-    
+
     def get_result_topic(self) -> str:
         """Generates topic for factory-wide result updates."""
         return f"{self.root}/result/status"
@@ -66,11 +67,9 @@ class TopicManager:
         Parses an agent command topic to extract line_id.
         Expected format: {root}/command/{line_id}
         """
-        parts = topic.split('/')
+        parts = topic.split("/")
         if len(parts) == 3 and parts[0] == self.root and parts[1] == "command":
-            return {
-                "line_id": parts[2]
-            }
+            return {"line_id": parts[2]}
         return None
 
     def get_agent_response_topic(self, line_id: Optional[str]) -> str:
@@ -79,4 +78,3 @@ class TopicManager:
             return f"{self.root}/response/{line_id}"
         else:
             return f"{self.root}/response/general"
-

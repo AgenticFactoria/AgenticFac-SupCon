@@ -1,7 +1,9 @@
 """
 Safe output utilities to handle BrokenPipeError when using pipes
 """
+
 import sys
+
 
 def safe_print(*args, **kwargs):
     """
@@ -13,4 +15,4 @@ def safe_print(*args, **kwargs):
         # When piped to head/tail, ignore broken pipe errors
         sys.stderr.close()
     except KeyboardInterrupt:
-        sys.exit(1) 
+        sys.exit(1)

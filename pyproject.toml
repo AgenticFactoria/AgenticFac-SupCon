@@ -10,6 +10,7 @@ dependencies = [
     "pyyaml",
     "numpy",
     "psutil",
+    "python-dotenv>=1.1.1",
 ]
 requires-python = ">=3.9"
 
@@ -27,6 +28,7 @@ build-backend = "setuptools.build_meta"
 [tool.uv]
 dev-dependencies = [
     "pytest",
+    "ruff>=0.12.4",
 ]
 
 [tool.pyright]

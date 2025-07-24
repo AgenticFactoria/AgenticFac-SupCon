@@ -1,11 +1,12 @@
 # utils/mqtt_client.py
 import logging
 import paho.mqtt.client as mqtt
-from typing import Callable, Optional
+from typing import Callable
 from pydantic import BaseModel
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
 
 class MQTTClient:
     """
@@ -18,7 +19,7 @@ class MQTTClient:
         self._port = port
         # NOTE: The client_id is passed as the first argument for compatibility.
         self._client = mqtt.Client(client_id=client_id)
-            
+
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
@@ -26,12 +27,18 @@ class MQTTClient:
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
-            logger.info(f"Successfully connected to MQTT Broker at {self._host}:{self._port}")
+            logger.info(
+                f"Successfully connected to MQTT Broker at {self._host}:{self._port}"
+            )
         else:
-            logger.error(f"Failed to connect to MQTT Broker, reason code: {reason_code}")
+            logger.error(
+                f"Failed to connect to MQTT Broker, reason code: {reason_code}"
+            )
 
     def _on_disconnect(self, client, userdata, reason_code, properties=None):
-        logger.warning(f"Disconnected from MQTT Broker with reason code: {reason_code}. Reconnecting...")
+        logger.warning(
+            f"Disconnected from MQTT Broker with reason code: {reason_code}. Reconnecting..."
+        )
 
     def _on_message(self, client, userdata, msg):
         """
@@ -66,7 +73,9 @@ class MQTTClient:
         self._client.loop_stop()
         self._client.disconnect()
 
-    def subscribe(self, topic: str, callback: Callable[[str, bytes], None], qos: int = 0):
+    def subscribe(
+        self, topic: str, callback: Callable[[str, bytes], None], qos: int = 0
+    ):
         """
         Subscribes to a topic and registers a callback for incoming messages.
 
@@ -78,12 +87,14 @@ class MQTTClient:
         """
         if not callable(callback):
             raise TypeError("Callback must be a callable function")
-            
+
         logger.info(f"Subscribing to topic: {topic}")
         self._message_callbacks[topic] = callback
         self._client.subscribe(topic, qos)
 
-    def publish(self, topic: str, payload: str | BaseModel, qos: int = 1, retain: bool = False):
+    def publish(
+        self, topic: str, payload: str | BaseModel, qos: int = 1, retain: bool = False
+    ):
         """
         Publishes a message to a topic.
 
@@ -105,7 +116,9 @@ class MQTTClient:
         logger.debug(f"Publishing to topic '{topic}': {message}")
         result = self._client.publish(topic, message, qos, retain)
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            logger.error(f"Failed to publish to topic {topic}: {mqtt.error_string(result.rc)}") 
+            logger.error(
+                f"Failed to publish to topic {topic}: {mqtt.error_string(result.rc)}"
+            )
 
     def is_connected(self):
         return self._client.is_connected()

@@ -28,7 +28,7 @@
   "wss": {
     "port": 8084,
     "host": "supos-ce-instance4.supos.app",
-    "client_id": "NLDF_TEST",
+    "client_id": "yangzhi",
     "username": "",
     "password": "",
     "keep_alive": 60,

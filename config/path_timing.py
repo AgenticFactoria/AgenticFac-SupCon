@@ -227,11 +227,11 @@ PATH_SEGMENT_TIMES: Dict[Tuple[str, str], float] = {
 def get_travel_time(from_point: str, to_point: str) -> float:
     """
     Get travel time between two path points, considering bidirectional paths.
-    
+
     Args:
         from_point: Starting path point (e.g., "P0")
         to_point: Destination path point (e.g., "P1")
-        
+
     Returns:
         Travel time in seconds, or -1.0 if path not found
     """
@@ -249,10 +249,10 @@ def get_all_reachable_points(from_point: str) -> Dict[str, float]:
     """
     Get all points reachable from a given point with their travel times.
     This function considers paths to be bidirectional.
-    
+
     Args:
         from_point: Starting path point
-        
+
     Returns:
         Dictionary mapping destination points to travel times
     """
@@ -268,11 +268,11 @@ def get_all_reachable_points(from_point: str) -> Dict[str, float]:
 def is_path_available(from_point: str, to_point: str) -> bool:
     """
     Check if a direct path exists between two points, considering bidirectional paths.
-    
+
     Args:
         from_point: Starting path point
         to_point: Destination path point
-        
+
     Returns:
         True if direct path exists, False otherwise
     """
