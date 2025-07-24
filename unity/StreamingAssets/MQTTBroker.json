@@ -1,7 +1,7 @@
 {
   "tcp": {
     "port": 1883,
-    "host": "supos-ce-instance4.supos.app",
+    "host": "ec2-18-138-212-199.ap-southeast-1.compute.amazonaws.com",
     "client_id": "simpy_mqtt_docker_mqtt_client",
     "username": "",
     "password": "",
@@ -14,7 +14,7 @@
   },
   "ws": {
     "port": 8083,
-    "host": "supos-ce-instance4.supos.app",
+    "host": "ec2-18-138-212-199.ap-southeast-1.compute.amazonaws.com",
     "client_id": "simpy_mqtt_docker_mqtt_client_ws",
     "username": "",
     "password": "",
@@ -27,7 +27,7 @@
   },
   "wss": {
     "port": 8084,
-    "host": "supos-ce-instance4.supos.app",
+    "host": "ec2-18-138-212-199.ap-southeast-1.compute.amazonaws.com",
     "client_id": "AgenticFactoria",
     "username": "",
     "password": "",
