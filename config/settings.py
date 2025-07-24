@@ -2,7 +2,7 @@
 
 # MQTT Broker Configuration
 # As specified in the user request.
-MQTT_BROKER_HOST = "ec2-18-138-212-199.ap-southeast-1.compute.amazonaws.com"
+MQTT_BROKER_HOST = "supos-ce-instance4.supos.app"
 MQTT_BROKER_PORT = 1883
 
 # Simulation Settings
