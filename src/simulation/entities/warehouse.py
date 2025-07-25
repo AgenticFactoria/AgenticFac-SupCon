@@ -113,7 +113,10 @@ class RawMaterial(BaseWarehouse):
         self.stats["total_materials_supplied"] += 1
         self.stats["product_type_summary"][product_type] += 1
         product.add_history(self.env.now, f"Raw material created at {self.id}")
-        print(
+        # Only log raw material creation in debug mode
+        import logging
+        logger = logging.getLogger(f"{self.__class__.__name__}.{self.id}")
+        logger.debug(
             f"[{self.env.now:.2f}] 🔧 {self.id}: Create raw material {product.id} (type: {product_type})"
         )
         self.buffer.put(product)
