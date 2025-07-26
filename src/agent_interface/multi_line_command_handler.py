@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from config.schemas import AgentCommand, SystemResponse
 from src.utils.mqtt_client import MQTTClient
 from src.utils.topic_manager import TopicManager
+from src.utils.command_processor import CommandProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -38,31 +39,39 @@ class MultiLineCommandHandler:
         """
         Callback for incoming MQTT command messages.
         Parses the topic to get line_id and device_id, then validates the payload.
+        Also handles LLM commands with line prefix in target field.
         """
         try:
-            # Parse the topic to extract line_id and device_id
+            # Parse the topic to extract line_id
             parsed_topic = self.topic_manager.parse_agent_command_topic(topic)
             if not parsed_topic:
                 logger.error(f"Could not parse command topic: {topic}")
                 return
 
-            line_id = parsed_topic["line_id"]
-            # device_id is now expected in the command payload's target field
+            topic_line_id = parsed_topic["line_id"]
 
             # Parse JSON payload
             command_data = json.loads(payload.decode("utf-8"))
 
+            # Process LLM commands with line prefix in target
+            processed_data = CommandProcessor.process_llm_command(command_data)
+            
+            # Use line_id from target if present, otherwise use topic line_id
+            if "line_id" in processed_data:
+                line_id = processed_data["line_id"]
+                logger.debug(f"Using line_id from target: {line_id}")
+            else:
+                line_id = topic_line_id
+
             try:
                 # Validate using Pydantic schema
                 from src.utils.pydantic_compat import model_validate
-                command = model_validate(AgentCommand, command_data)
+                command = model_validate(AgentCommand, processed_data)
             except Exception as e:
                 msg = f"Failed to validate command: {e}"
                 logger.error(msg)
-                self._publish_response(line_id, command_data.get("command_id"), msg)
+                self._publish_response(line_id, processed_data.get("command_id"), msg)
                 return
-
-            # No need to check command.target against topic-derived device_id anymore
 
             logger.debug(
                 f"Received valid command for line '{line_id}': {command.action} for {command.target}"
