@@ -69,15 +69,19 @@ class StrategyEvaluator:
         # Print topic manager info like simple agent
         print(f"✅ TopicManager initialized with root topic: '{self.root_topic}'")
         
-        # Initialize MQTT client
+        # Initialize MQTT client with authentication
+        from config.agent_config import get_mqtt_config
+        mqtt_config = get_mqtt_config()
         self.mqtt_client = MQTTClient(
-            MQTT_BROKER_HOST, 
-            MQTT_BROKER_PORT, 
-            f"{self.root_topic}_evaluator"
+            mqtt_config.host, 
+            mqtt_config.port, 
+            f"{self.root_topic}_evaluator",
+            username=mqtt_config.username,
+            password=mqtt_config.password
         )
         
         if not self.no_mqtt:
-            logger.info(f"Connecting to MQTT Broker at {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}...")
+            logger.info(f"Connecting to MQTT Broker at {mqtt_config.host}:{mqtt_config.port}...")
             self.mqtt_client.connect()
             # Wait for MQTT connection
             max_retries = 20
@@ -200,9 +204,9 @@ class StrategyEvaluator:
         return "line1"
     
     def _get_final_results(self) -> Dict[str, Any]:
-        """Get final KPI results from the factory."""
-        if not self.factory or not self.factory.kpi_calculator:
-            logger.error("Factory or KPI calculator not available")
+        """Get final KPI results from the factory using get_result command only."""
+        if not self.factory:
+            logger.error("Factory not available")
             return {}
         
         try:
@@ -216,14 +220,87 @@ class StrategyEvaluator:
             
             if not self.no_mqtt:
                 command_topic = self.topic_manager.get_agent_command_topic("line1")
+                logger.info(f"Sending get_result command to {command_topic}")
                 self.mqtt_client.publish(command_topic, json.dumps(command))
                 
-                # Wait a bit for the result to be published
-                time.sleep(1)
-            
-            # Get scores directly from KPI calculator
-            final_scores = self.factory.kpi_calculator.get_final_score()
-            return final_scores
+                # Wait for command confirmation first, then get result/status
+                response_topic = self.topic_manager.get_agent_response_topic("line1")
+                result_topic = self.topic_manager.get_result_topic()
+                logger.info(f"Waiting for command confirmation on: {response_topic}")
+                logger.info(f"Then will get result from: {result_topic}")
+                
+                start_wait = time.time()
+                check_count = 0
+                command_confirmed = False
+                
+                while True:
+                    check_count += 1
+                    
+                    # First, wait for the get_result command to be confirmed
+                    if not command_confirmed:
+                        for msg in reversed(self.message_buffer):
+                            if (msg['topic'] == response_topic and 
+                                msg['message'].get('command_id') == 'eval_get_result'):
+                                logger.info(f"✅ get_result command confirmed: {msg['message'].get('response')}")
+                                command_confirmed = True
+                                break
+                    
+                    # After confirmation, look for the result in result/status topic
+                    if command_confirmed:
+                        for msg in reversed(self.message_buffer):
+                            if msg['topic'] == result_topic and 'total_score' in msg['message']:
+                                elapsed = time.time() - start_wait
+                                logger.info(f"✅ Found result after {elapsed:.1f}s: {msg['message']['total_score']}")
+                                return msg['message']
+                    
+                    # Log progress every 10 checks (5 seconds)
+                    if check_count % 10 == 0:
+                        elapsed = time.time() - start_wait
+                        if not command_confirmed:
+                            logger.info(f"⏳ Waiting for command confirmation... ({elapsed:.1f}s elapsed)")
+                        else:
+                            logger.info(f"⏳ Command confirmed, waiting for result/status... ({elapsed:.1f}s elapsed)")
+                        
+                        # Show recent topics for debugging
+                        if len(self.message_buffer) > 0:
+                            recent_topics = [msg['topic'] for msg in self.message_buffer[-5:]]
+                            logger.info(f"Recent topics: {recent_topics}")
+                    
+                    # Wait a bit before checking again
+                    time.sleep(0.5)
+            else:
+                # In offline mode, we need to trigger the command handler directly
+                logger.info("Offline mode - triggering get_result command directly")
+                if hasattr(self, 'command_handler') and self.command_handler:
+                    try:
+                        # Create AgentCommand object for the command handler
+                        from config.schemas import AgentCommand
+                        agent_command = AgentCommand(
+                            command_id=command["command_id"],
+                            action=command["action"],
+                            target=command["target"],
+                            params=command["params"]
+                        )
+                        
+                        # Call the command handler's execute method directly
+                        self.command_handler._execute_command("line1", agent_command)
+                        logger.info("get_result command executed in offline mode")
+                        
+                        # Get the KPI result directly since we're offline
+                        if self.factory and self.factory.kpi_calculator:
+                            final_scores = self.factory.kpi_calculator.get_final_score()
+                            logger.info(f"Offline mode - got scores directly: {final_scores.get('total_score', 0)}")
+                            return final_scores
+                    except Exception as e:
+                        logger.error(f"Error in offline mode command handling: {e}")
+                        # Fallback: get scores directly without command processing
+                        if self.factory and self.factory.kpi_calculator:
+                            logger.info("Fallback: getting scores directly from KPI calculator")
+                            final_scores = self.factory.kpi_calculator.get_final_score()
+                            return final_scores
+                
+                logger.warning("Offline mode result retrieval failed")
+                return {}
             
         except Exception as e:
             logger.error(f"Error getting final results: {e}")
@@ -303,7 +380,7 @@ def eval_strategy(
         evaluator.running = True
         
         try:
-            while evaluator.running and (time.time() - start_time) < simulation_time:
+            while evaluator.running and (time.time() - start_time) < float(simulation_time):
                 # Run simulation for 1 second at a time, synchronized with real time
                 current_sim_time = int(evaluator.factory.env.now)
                 evaluator.factory.run(until=current_sim_time + 1)
@@ -313,7 +390,7 @@ def eval_strategy(
                 
                 # Check if we should continue
                 elapsed_real_time = time.time() - start_time
-                if elapsed_real_time >= simulation_time:
+                if elapsed_real_time >= float(simulation_time):
                     break
                     
         except KeyboardInterrupt:

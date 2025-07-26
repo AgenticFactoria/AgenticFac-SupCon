@@ -222,11 +222,15 @@ class MultiAgentFactoryController:
         for line_commander in self.line_commanders.values():
             line_commander.stop()
 
-        # Disconnect MQTT
+        # Disconnect MQTT first
         self.mqtt_client.disconnect()
 
         # Shutdown executor
         self.executor.shutdown(wait=False)
+
+        # Clean up async resources properly
+        from src.utils.async_cleanup import cleanup_async_resources
+        cleanup_async_resources(timeout=2.0)
 
         self.logger.info("Multi-agent system shutdown complete")
 

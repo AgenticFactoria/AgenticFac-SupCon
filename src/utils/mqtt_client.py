@@ -14,31 +14,57 @@ class MQTTClient:
     methods for connecting, publishing, and subscribing.
     """
 
-    def __init__(self, host: str, port: int, client_id: str = ""):
+    def __init__(self, host: str, port: int, client_id: str = "", username: str = None, password: str = None):
         self._host = host
         self._port = port
+        self._client_id = client_id
         # NOTE: The client_id is passed as the first argument for compatibility.
         self._client = mqtt.Client(client_id=client_id)
+
+        # Set authentication if provided
+        if username and password:
+            logger.info(f"Setting MQTT authentication for user: {username}")
+            self._client.username_pw_set(username, password)
+        elif username:
+            logger.info(f"Setting MQTT username: {username}")
+            self._client.username_pw_set(username)
 
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
+        self._client.on_connect_fail = self._on_connect_fail
+        self._client.reconnect_delay_set(min_delay=1, max_delay=60)
         self._message_callbacks = {}
+        self._is_connecting = False
+        self._connection_attempts = 0
+        self._max_connection_attempts = 10
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
+            self._connection_attempts = 0  # Reset on successful connection
             logger.info(
                 f"Successfully connected to MQTT Broker at {self._host}:{self._port}"
             )
+            self._is_connecting = False
         else:
             logger.error(
                 f"Failed to connect to MQTT Broker, reason code: {reason_code}"
             )
+            self._is_connecting = False
 
     def _on_disconnect(self, client, userdata, reason_code, properties=None):
         logger.warning(
-            f"Disconnected from MQTT Broker with reason code: {reason_code}. Reconnecting..."
+            f"Disconnected from MQTT Broker with reason code: {reason_code}"
         )
+        self._is_connecting = False
+        if reason_code != 0:  # Unexpected disconnect
+            logger.warning("Unexpected disconnect detected, will attempt reconnection...")
+            self._schedule_reconnect()
+
+    def _on_connect_fail(self, client, userdata):
+        logger.error("Connection attempt failed")
+        self._is_connecting = False
+        self._schedule_reconnect()
 
     def _on_message(self, client, userdata, msg):
         """
@@ -53,6 +79,35 @@ class MQTTClient:
         else:
             logger.warning(f"No callback registered for message on topic {msg.topic}")
 
+    def _schedule_reconnect(self):
+        """Schedule automatic reconnection with exponential backoff"""
+        if self._is_connecting:
+            return
+            
+        self._connection_attempts += 1
+        if self._connection_attempts > self._max_connection_attempts:
+            logger.error(f"Max reconnection attempts ({self._max_connection_attempts}) reached. Giving up.")
+            return
+            
+        delay = min(2 ** self._connection_attempts, 60)  # Exponential backoff, max 60 seconds
+        logger.info(f"Reconnection attempt {self._connection_attempts} in {delay} seconds...")
+        
+        import threading
+        threading.Timer(delay, self._attempt_reconnect).start()
+
+    def _attempt_reconnect(self):
+        """Attempt to reconnect to the broker"""
+        if self.is_connected() or self._is_connecting:
+            return
+            
+        try:
+            self._is_connecting = True
+            logger.info(f"Attempting to reconnect to {self._host}:{self._port}...")
+            self._client.reconnect()
+        except Exception as e:
+            logger.error(f"Reconnection attempt failed: {e}")
+            self._schedule_reconnect()
+
     def connect(self):
         """
         Connects to the MQTT broker and starts the network loop in a separate thread.
@@ -63,6 +118,7 @@ class MQTTClient:
             self._client.loop_start()
         except Exception as e:
             logger.error(f"Error connecting to MQTT Broker: {e}")
+            self._schedule_reconnect()
             raise
 
     def disconnect(self):
@@ -72,6 +128,42 @@ class MQTTClient:
         logger.info("Disconnecting from MQTT Broker.")
         self._client.loop_stop()
         self._client.disconnect()
+        self._connection_attempts = 0
+
+    def publish(
+        self, topic: str, payload: str | BaseModel, qos: int = 1, retain: bool = False
+    ):
+        """
+        Publishes a message to a topic.
+
+        Args:
+            topic (str): The topic to publish to.
+            payload (str | BaseModel): The message payload. If it's a Pydantic BaseModel,
+                                       it will be automatically converted to a JSON string.
+            qos (int): The Quality of Service level for the message.
+            retain (bool): Whether the message should be retained by the broker.
+        """
+        if isinstance(payload, BaseModel):
+            from .pydantic_compat import model_to_json
+            message = model_to_json(payload)
+        elif isinstance(payload, str):
+            message = payload
+        else:
+            message = str(payload)
+            # raise TypeError("Payload must be a string or a Pydantic BaseModel")
+
+        if not self.is_connected():
+            logger.warning(f"MQTT client not connected. Message to topic '{topic}' will be queued.")
+            return False
+
+        logger.debug(f"Publishing to topic '{topic}': {message}")
+        result = self._client.publish(topic, message, qos, retain)
+        if result.rc != mqtt.MQTT_ERR_SUCCESS:
+            logger.error(
+                f"Failed to publish to topic {topic}: {mqtt.error_string(result.rc)}"
+            )
+            return False
+        return True
 
     def subscribe(
         self, topic: str, callback: Callable[[str, bytes], None], qos: int = 0
@@ -106,7 +198,8 @@ class MQTTClient:
             retain (bool): Whether the message should be retained by the broker.
         """
         if isinstance(payload, BaseModel):
-            message = payload.model_dump_json()
+            from .pydantic_compat import model_to_json
+            message = model_to_json(payload)
         elif isinstance(payload, str):
             message = payload
         else:
@@ -122,3 +215,13 @@ class MQTTClient:
 
     def is_connected(self):
         return self._client.is_connected()
+
+    def get_connection_status(self):
+        """Get detailed connection status information"""
+        return {
+            'connected': self.is_connected(),
+            'connection_attempts': self._connection_attempts,
+            'host': self._host,
+            'port': self._port,
+            'client_id': self._client_id
+        }

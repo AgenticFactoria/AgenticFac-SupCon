@@ -393,8 +393,12 @@ class Factory:
         self.env.run(until=until)
         # print("--- Factory simulation finished ---")
 
-    def print_final_scores(self):
-        """Print final competition scores. Should be called only when simulation truly ends."""
+    def print_final_scores(self, force_update: bool = False):
+        """Print final competition scores. 
+        
+        Args:
+            force_update: Whether to force a KPI update after printing (default: False)
+        """
         if self.kpi_calculator:
             final_scores = self.kpi_calculator.get_final_score()
             print(f"\n{'=' * 60}")
@@ -430,8 +434,9 @@ class Factory:
             print(f"\n总得分: {final_scores['total_score']:.2f}")
             print(f"{'=' * 60}\n")
 
-            # Force a final KPI update with final scores
-            self.kpi_calculator.force_kpi_update()
+            # Only force KPI update if explicitly requested
+            if force_update:
+                self.kpi_calculator.force_kpi_update()
 
     def get_final_scores(self) -> Optional[Dict]:
         """Get final competition scores from KPI calculator."""

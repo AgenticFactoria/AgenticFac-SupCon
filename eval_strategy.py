@@ -187,10 +187,17 @@ def get_builtin_strategy(name: str) -> Callable:
         
         return None
     
+    def multi_agent_strategy(topic: str, message: dict) -> dict:
+        """多智能体策略：使用主管代理和生产线指挥官"""
+        # 多智能体系统会在内部处理所有决策
+        # 这里返回None，因为实际决策由多智能体系统内部完成
+        return None
+    
     strategies = {
         'none': no_action_strategy,
         'simple': simple_strategy,
         'reactive': reactive_strategy,
+        'multi_agent': multi_agent_strategy,
     }
     
     if name not in strategies:
@@ -373,7 +380,7 @@ def main():
     parser.add_argument(
         '--builtin', 
         nargs='+',
-        choices=['none', 'simple', 'reactive'],
+        choices=['none', 'simple', 'reactive', 'multi_agent'],
         help='使用内置策略 (可选: none, simple, reactive)'
     )
     

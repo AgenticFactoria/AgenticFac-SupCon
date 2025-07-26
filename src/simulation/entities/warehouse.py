@@ -47,7 +47,8 @@ class BaseWarehouse(Device):
             topic = self.topic_manager.get_warehouse_status_topic(self.id)
         else:
             topic = get_warehouse_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_data.model_dump_json(), retain=False)
+        from src.utils.pydantic_compat import model_to_json
+        self.mqtt_client.publish(topic, model_to_json(status_data), retain=False)
 
     def get_buffer_level(self) -> int:
         """Return the current number of items in the buffer."""

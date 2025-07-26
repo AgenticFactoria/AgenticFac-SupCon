@@ -157,7 +157,7 @@ class OrderGenerator:
         try:
             if self.mqtt_client and self.topic_manager:
                 topic = self.topic_manager.get_order_topic()
-                self.mqtt_client.publish(topic, order.model_dump_json())
+                self.mqtt_client.publish(topic, order.json())
 
             # Register order with KPI calculator
             if self.kpi_calculator:

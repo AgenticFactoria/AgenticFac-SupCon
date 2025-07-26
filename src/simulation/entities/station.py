@@ -131,7 +131,7 @@ class Station(Device):
             topic = self.topic_manager.get_station_status_topic(self.line_id, self.id)
         else:
             topic = get_station_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_data.model_dump_json(), retain=False)
+        self.mqtt_client.publish(topic, status_data.json(), retain=False)
 
     def run(self):
         """The main operational loop for the station."""

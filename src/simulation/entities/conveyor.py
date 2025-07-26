@@ -81,7 +81,7 @@ class Conveyor(BaseConveyor):
             topic = self.topic_manager.get_conveyor_status_topic(self.line_id, self.id)
         else:
             topic = get_conveyor_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_data.model_dump_json(), retain=False)
+        self.mqtt_client.publish(topic, status_data.json(), retain=False)
 
     def set_downstream_station(self, station):
         """Set the downstream station for auto-transfer."""
@@ -594,7 +594,7 @@ class TripleBufferConveyor(BaseConveyor):
             topic = self.topic_manager.get_conveyor_status_topic(self.line_id, self.id)
         else:
             topic = get_conveyor_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_data.model_dump_json(), retain=False)
+        self.mqtt_client.publish(topic, status_data.json(), retain=False)
 
     def set_downstream_station(self, station):
         """Set the downstream station for auto-transfer from main_buffer."""

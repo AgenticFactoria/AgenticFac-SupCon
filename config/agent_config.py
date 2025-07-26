@@ -20,10 +20,10 @@ load_dotenv()
 class MQTTConfig:
     """MQTT Broker Configuration"""
 
-    host: str = "supos-ce-instance4.supos.app"
-    port: int = 8083
-    username: Optional[str] = None
-    password: Optional[str] = None
+    host: str = field(default_factory=lambda: os.getenv("MQTT_HOST", "supos-ce-instance4.supos.app"))
+    port: int = field(default_factory=lambda: int(os.getenv("MQTT_PORT", "8083")))
+    username: Optional[str] = field(default_factory=lambda: os.getenv("MQTT_USERNAME"))
+    password: Optional[str] = field(default_factory=lambda: os.getenv("MQTT_PASSWORD"))
     keepalive: int = 60
     clean_session: bool = True
 

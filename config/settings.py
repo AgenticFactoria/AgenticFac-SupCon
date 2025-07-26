@@ -1,9 +1,10 @@
 # config/settings.py
+import os
 
 # MQTT Broker Configuration
-# As specified in the user request.
-MQTT_BROKER_HOST = "supos-ce-instance4.supos.app"
-MQTT_BROKER_PORT = 1883
+# Use environment variables with fallback to default values
+MQTT_BROKER_HOST = os.getenv("MQTT_HOST", "supos-ce-instance4.supos.app")
+MQTT_BROKER_PORT = int(os.getenv("MQTT_PORT", "8083"))
 
 # Simulation Settings
 SIMULATION_SPEED = 1  # 1 = real-time, 10 = 10x speed

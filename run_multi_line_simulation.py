@@ -50,11 +50,20 @@ class MultiLineFactorySimulation:
             or os.getenv("USER")
             or "NLDF_TEST"
         )
-        self.mqtt_client = MQTTClient(MQTT_BROKER_HOST, MQTT_BROKER_PORT, client_name)
+        # Use MQTT config with authentication
+        from config.agent_config import get_mqtt_config
+        mqtt_config = get_mqtt_config()
+        self.mqtt_client = MQTTClient(
+            mqtt_config.host, 
+            mqtt_config.port, 
+            client_name,
+            username=mqtt_config.username,
+            password=mqtt_config.password
+        )
 
         # Connect to MQTT
         logger.info(
-            f"📡 Connecting to MQTT broker at {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}, client_name: {client_name}"
+            f"📡 Connecting to MQTT broker at {mqtt_config.host}:{mqtt_config.port}, client_name: {client_name}"
         )
 
         if not no_mqtt:

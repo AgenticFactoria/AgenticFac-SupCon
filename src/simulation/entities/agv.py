@@ -782,4 +782,4 @@ class AGV(Vehicle):
             from config.topics import get_agv_status_topic
 
             topic = get_agv_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_payload.model_dump_json(), retain=False)
+        self.mqtt_client.publish(topic, status_payload.json(), retain=False)

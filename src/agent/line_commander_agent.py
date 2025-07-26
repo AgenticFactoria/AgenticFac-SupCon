@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 # Using openai-agents library from the project
-from agents import Agent, AgentOutputSchema, Runner
+from agents import Agent, Runner
 from pydantic import BaseModel, Field
 
 from .prompts import AgentPrompts
@@ -93,9 +93,7 @@ class LineCommanderAgent:
             name=f"LineCommander_{line_id}",
             instructions=AgentPrompts.get_line_commander_prompt(line_id),
             model="kimi-k2-0711-preview",
-            output_type=AgentOutputSchema(
-                LineCommandDecision, strict_json_schema=False
-            ),
+            output_type=LineCommandDecision,
         )
 
         # AGV task queue

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 # Using openai-agents library from the project
-from agents import Agent, AgentOutputSchema, Runner
+from agents import Agent, Runner
 from pydantic import BaseModel, Field
 
 from .prompts import AgentPrompts
@@ -66,7 +66,7 @@ class SupervisorAgent:
             name="SupervisorAgent",
             instructions=AgentPrompts.SUPERVISOR,
             model="kimi-k2-0711-preview",  # Using same model as simple_agent
-            output_type=AgentOutputSchema(SupervisorDecision, strict_json_schema=False),
+            output_type=SupervisorDecision,
         )
 
     async def handle_message(self, topic: str, message: Dict):

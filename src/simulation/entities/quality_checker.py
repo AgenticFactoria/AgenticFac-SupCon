@@ -105,7 +105,7 @@ class QualityChecker(Station):
             from config.topics import get_station_status_topic
 
             topic = get_station_status_topic(self.id)
-        self.mqtt_client.publish(topic, status_data.model_dump_json(), retain=False)
+        self.mqtt_client.publish(topic, status_data.json(), retain=False)
 
     def process_product(self, product: Product):
         """

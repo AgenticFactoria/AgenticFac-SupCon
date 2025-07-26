@@ -123,7 +123,7 @@ class FactorySimulation:
                 logger.info(f"⏱️  Running simulation for {duration} seconds")
                 self.factory.run(until=duration)
                 # For fixed duration, print scores after normal completion
-                self.factory.print_final_scores()
+                self.factory.print_final_scores(force_update=True)
             else:
                 logger.info("🔄 Running simulation indefinitely (Ctrl+C to stop)")
                 while self.running:
@@ -155,7 +155,7 @@ class FactorySimulation:
 
         # Print final scores when shutting down
         if self.factory:
-            self.factory.print_final_scores()
+            self.factory.print_final_scores(force_update=True)
 
         if self.mqtt_client:
             self.mqtt_client.disconnect()

@@ -42,12 +42,12 @@ uv run run_multi_line_simulation.py (--menu) (--no-mqtt)
    "wss":{
    "port": 8084,
    "host": "supos-ce-instance4.supos.app",
-   "client*id": "\*\*\_NLDF2_mqtt_wss_test*\*\*",
+   "client*id": "**_NLDF2_mqtt_wss_test**",
    ......
    },
 
    "common*topic":{
-   "Root_Topic_Head": "\*\*\_NLDF1*\*\*"},
+   "Root_Topic_Head": "**_NLDF1**"},
 
 ## Background
 
@@ -213,5 +213,242 @@ sequenceDiagram
    - 如果你进一步集成了 supOS-CE 的其他组件（如 NodeRED、Portainer 等），或发现并反馈了其问题/bug，也会获得额外加分。
 
    - > [supos 选手使用方法](https://ofra65wfwe.feishu.cn/wiki/SRgrwj9LWimsTikRFdzcVvlDnEU)
+
+## Strategies Documentation
+
+The project provides several strategy implementations for controlling the factory simulation. These strategies can be used with the evaluation framework to test different approaches to factory optimization.
+
+### Strategy Functions Overview
+
+All strategy functions follow the same interface pattern:
+
+```python
+def strategy_function(topic: str, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Process an MQTT message and return a command action.
+    
+    Args:
+        topic: MQTT topic string (e.g., "NLDF/line1/orders")
+        message: JSON message dictionary containing factory state
+        
+    Returns:
+        dict: Command in format {"action": "...", "target": "...", "params": {...}}
+        None: If no action should be taken
+    """
+```
+
+### Available Strategy Files
+
+#### 1. Simple Strategy (`strategies/simple_strategy_function.py`)
+
+**Function Name:** `agent_strategy_function`
+
+**Purpose:** Basic single-agent strategy with embedded dependencies
+
+**Key Features:**
+- Self-contained function with all dependencies embedded
+- Uses LLM integration (Moonshot AI) when API key available
+- Falls back to mock responses for testing
+- Processes order-related messages only
+- Simple decision-making logic
+
+**Usage:**
+```python
+from simple_strategy_function import agent_strategy_function
+results = eval_strategy(agent_strategy_function, simulation_time=300)
+```
+
+**Environment Variables:**
+- `MOONSHOT_API_KEY`: API key for Moonshot AI integration (optional)
+
+#### 2. Multi-Agent Strategy (`strategies/multi_strategy_function.py`)
+
+**Function Name:** `agent_strategy_function`
+
+**Purpose:** Multi-agent coordination strategy with supervisor and line commanders
+
+**Key Features:**
+- Multi-level decision making (supervisor + line commanders)
+- Coordinated AGV management across multiple lines
+- Order allocation and load balancing
+- Battery-aware AGV scheduling
+- Embedded multi-agent decision engine
+
+**Decision Logic:**
+- **Supervisor Level:** Order allocation and resource distribution
+- **Line Commander Level:** AGV coordination within a line
+- **AGV Level:** Individual AGV task assignment and charging
+
+**Usage:**
+```python
+from multi_strategy_function import agent_strategy_function
+results = eval_strategy(agent_strategy_function, simulation_time=300)
+```
+
+#### 3. NLDF Strategy (`strategies/nldf_strategy_function.py`)
+
+**Function Name:** `predict`
+
+**Purpose:** Next-Level Digital Factory (NLDF) optimized strategy
+
+**Key Features:**
+- NLDF-specific optimization logic
+- Multi-line support (line1, line2, line3)
+- Enhanced KPI-focused decision making
+- Advanced LLM integration with proper async handling
+- Comprehensive state analysis
+
+**Usage:**
+```python
+from nldf_strategy_function import predict
+results = eval_strategy(predict, simulation_time=300)
+```
+
+#### 4. Multi-Agent System Strategy (`strategies/multi_agent_strategy.py`)
+
+**Function Name:** `multi_agent_factory_control`
+
+**Purpose:** Full multi-agent system wrapper for production use
+
+**Key Features:**
+- Complete multi-agent system integration
+- Supervisor agent for global coordination
+- Line commander agents for local optimization
+- Real MQTT communication
+- Production-ready architecture
+
+**Usage:**
+```python
+from multi_agent_strategy import multi_agent_factory_control, eval_multi_agent_system
+
+# Quick evaluation
+results = eval_multi_agent_system(simulation_time=300)
+
+# Strategy function for eval_strategy
+results = eval_strategy(multi_agent_factory_control, simulation_time=300)
+```
+
+#### 5. Example Strategies (`strategies/example_strategies.py`)
+
+**Available Functions:**
+- `simple_reactive_strategy`: Basic reactive responses to station idle states
+- `proactive_scheduling_strategy`: Predictive scheduling based on order patterns
+- `warehouse_optimization_strategy`: Focus on inventory and warehouse management
+- `load_balancing_strategy`: Distribute workload across stations
+- `multi_agent`: Wrapper for multi-agent system
+
+**Usage:**
+```python
+from example_strategies import get_strategy, list_strategies
+
+# Get specific strategy
+strategy = get_strategy('simple_reactive')
+results = eval_strategy(strategy, simulation_time=300)
+
+# List all available strategies
+print(list_strategies())
+```
+
+### Strategy Development Guidelines
+
+#### Function Structure Template
+
+When creating new strategies, follow this template:
+
+```python
+def my_strategy_function(topic: str, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Brief description of your strategy.
+    
+    Args:
+        topic: MQTT topic string
+        message: JSON message dictionary
+        
+    Returns:
+        dict: Command dictionary or None
+    """
+    
+    # 1. Message filtering - determine if this message is relevant
+    if not should_process_message(topic, message):
+        return None
+    
+    # 2. State analysis - extract relevant information from message
+    state = analyze_factory_state(topic, message)
+    
+    # 3. Decision making - apply your strategy logic
+    decision = make_strategic_decision(state)
+    
+    # 4. Command generation - format the response
+    return format_command(decision)
+```
+
+#### Command Format Specification
+
+All commands must follow this JSON structure:
+
+```json
+{
+  "command_id": "unique_identifier_string",
+  "action": "action_type",
+  "target": "device_id",
+  "params": {
+    "key1": "value1",
+    "key2": "value2"
+  }
+}
+```
+
+#### Supported Actions
+
+| Action | Description | Target | Required Params |
+|--------|-------------|---------|-----------------|
+| `move` | Move AGV to specified point | AGV ID | `target_point`: "P0"-"P9" |
+| `charge` | Command AGV to charge | AGV ID | `target_level`: 0-100 (default: 80) |
+| `load` | Load product from station | AGV ID | `product_id`: specific product ID (optional) |
+| `unload` | Unload product to station | AGV ID | {} (empty params) |
+| `get_result` | Get current KPI results | any | {} (empty params) |
+
+#### Testing Your Strategy
+
+Each strategy file includes built-in testing:
+
+```bash
+# Test individual strategy
+python strategies/simple_strategy_function.py
+python strategies/multi_strategy_function.py
+python strategies/nldf_strategy_function.py
+python strategies/multi_agent_strategy.py
+
+# Test example strategies
+python strategies/example_strategies.py
+```
+
+#### Performance Evaluation
+
+Use the evaluation framework to test strategies:
+
+```python
+from src.evaluation.strategy_evaluator import eval_strategy, quick_eval
+
+# Full evaluation
+results = eval_strategy(
+    strategy_func=my_strategy,
+    simulation_time=300,  # 5 minutes
+    root_topic="MY_STRATEGY_TEST"
+)
+
+# Quick evaluation (1 minute)
+score = quick_eval(my_strategy, 60)
+```
+
+### Strategy Comparison
+
+| Strategy | Complexity | Multi-Agent | LLM Integration | Best For |
+|----------|------------|-------------|-----------------|----------|
+| Simple | Low | No | Optional | Quick testing, baseline |
+| Multi | Medium | Yes | Optional | Coordinated AGV management |
+| NLDF | High | No | Required | Advanced optimization |
+| Multi-Agent System | High | Yes | Required | Production deployment |
+| Example Strategies | Variable | Mixed | Optional | Learning and reference |
 
 ---

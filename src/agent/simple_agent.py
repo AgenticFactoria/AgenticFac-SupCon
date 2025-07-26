@@ -6,9 +6,9 @@ import sys
 import time
 from pathlib import Path
 
-# Assuming 'agents' is a new library provided by the user.
-# If this causes an error, the user needs to install it.
-from agents import Agent, AgentOutputSchema, Runner
+from openai import AsyncOpenAI
+import json
+from typing import Dict, Any
 from dotenv import load_dotenv
 
 # Add project root to sys.path
@@ -34,11 +34,8 @@ class SimpleAgent:
         self.mqtt_client = MQTTClient(
             MQTT_BROKER_HOST, MQTT_BROKER_PORT, self.client_id
         )
-        self.agent = Agent(
-            name="FactoryControlAgent",
-            instructions=AgentPrompts.SIMPLE_AGENT,
-            model="kimi-k2-0711-preview",
-            output_type=AgentOutputSchema(AgentCommand, strict_json_schema=False),
+        self.client = AsyncOpenAI(
+            base_url="https://api.moonshot.cn/v1", api_key=os.getenv("MOONSHOT_API_KEY")
         )
 
     def on_message(self, topic: str, payload: bytes):
@@ -46,8 +43,23 @@ class SimpleAgent:
             message = json.loads(payload.decode())
             logging.info(f"Received message on topic {topic}: {message}")
 
-            # Run the agent logic in an async context
-            asyncio.run(self.handle_message(topic, message))
+            # Schedule the async handler to run in the event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is already running, schedule as a task
+                    asyncio.create_task(self.handle_message(topic, message))
+                else:
+                    # If no loop is running, run it
+                    asyncio.run(self.handle_message(topic, message))
+            except RuntimeError:
+                # If we can't get the event loop, create a new one
+                try:
+                    asyncio.run(self.handle_message(topic, message))
+                except RuntimeError as e:
+                    logging.error(f"Failed to run async handler: {e}")
+                    # Fallback: handle synchronously without agent processing
+                    logging.warning("Falling back to synchronous processing")
 
         except json.JSONDecodeError:
             logging.error(f"Could not decode JSON from topic {topic}")
@@ -63,34 +75,51 @@ class SimpleAgent:
         user_prompt = self.create_prompt(message)
 
         try:
-            logging.info("Running agent with new message...")
-            result = await Runner.run(self.agent, input=user_prompt)
+            logging.info("Running OpenAI API with new message...")
+            completion = await self.client.chat.completions.create(
+                model="kimi-k2-0711-preview",
+                messages=[
+                    {"role": "system", "content": AgentPrompts.SIMPLE_AGENT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=1000,
+                temperature=0.1
+            )
 
-            response_content = ""
-            if result is None:
-                logging.error("Agent returned no result.")
+            response_content = completion.choices[0].message.content
+            if not response_content:
+                logging.error("OpenAI returned no content.")
                 return
-            logging.info("Agent is processing the message...")
-            response_content = result.final_output
 
             logging.info(f"Agent raw response: {response_content}")
 
-            if response_content:
-                logging.info(f"Extracted command: {response_content}")
+            try:
+                command_dict = json.loads(response_content)
+                
+                # Ensure required fields are present
+                required_fields = ["action", "target"]
+                if not all(field in command_dict for field in required_fields):
+                    logging.error(f"Missing required fields: {[f for f in required_fields if f not in command_dict]}")
+                    return
+
+                logging.info(f"Extracted command: {command_dict}")
                 command_topic = self.topic_manager.get_agent_command_topic(line_id)
-                # Convert AgentCommand object to dict for JSON serialization
-                command_dict = (
-                    response_content.model_dump()
-                    if hasattr(response_content, "model_dump")
-                    else response_content.__dict__
-                )
                 self.mqtt_client.publish(command_topic, json.dumps(command_dict))
                 logging.info(f"Published command to {command_topic}")
-            else:
-                logging.error("Agent did not return a valid JSON command.")
+                
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse JSON response: {e}")
 
         except Exception as e:
-            logging.error(f"Failed to process message with agent: {e}")
+            logging.error(f"Failed to process message with OpenAI: {e}")
+        finally:
+            # Ensure any async resources are properly cleaned up
+            try:
+                # Give a moment for any pending async operations to complete
+                await asyncio.sleep(0.1)
+            except Exception:
+                pass
 
     def create_prompt(self, message: dict) -> str:
         """Creates a user prompt for the LLM based on the incoming message."""
@@ -141,25 +170,25 @@ class SimpleAgent:
         except KeyboardInterrupt:
             logging.info("Agent shutting down.")
         finally:
+            self.shutdown()
+    
+    def shutdown(self):
+        """Properly shutdown the agent and clean up resources."""
+        logging.info("Cleaning up agent resources...")
+        
+        # Disconnect MQTT first
+        if self.mqtt_client:
             self.mqtt_client.disconnect()
+        
+        # Clean up async resources properly
+        from src.utils.async_cleanup import cleanup_async_resources
+        cleanup_async_resources(timeout=2.0)
+        
+        logging.info("Agent shutdown complete.")
 
 
 def main():
-    from agents import (
-        set_default_openai_api,
-        set_default_openai_client,
-        set_tracing_disabled,
-    )
-    from openai import AsyncOpenAI
-
     load_dotenv()
-
-    set_tracing_disabled(True)
-    custom_client = AsyncOpenAI(
-        base_url="https://api.moonshot.cn/v1", api_key=os.getenv("MOONSHOT_API_KEY")
-    )
-    set_default_openai_client(custom_client)
-    set_default_openai_api("chat_completions")
 
     root_topic = (
         os.getenv("TOPIC_ROOT")

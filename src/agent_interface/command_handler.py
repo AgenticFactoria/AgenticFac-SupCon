@@ -44,7 +44,8 @@ class CommandHandler:
 
             try:
                 # Validate using Pydantic schema
-                command = AgentCommand.model_validate(command_data)
+                from src.utils.pydantic_compat import model_validate
+                command = model_validate(AgentCommand, command_data)
             except Exception as e:
                 msg = f"Failed to validate command: {e}"
                 logger.error(msg)
@@ -52,7 +53,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     response=msg,
                     command_id=command_data.get("command_id"),
-                ).model_dump_json()
+                ).json()
                 self.mqtt_client.publish(AGENT_RESPONSES_TOPIC, response_payload)
                 return
 
@@ -70,7 +71,7 @@ class CommandHandler:
                 timestamp=self.factory.env.now,
                 command_id=command_data.get("command_id"),
                 response=msg,
-            ).model_dump_json()
+            ).json()
             self.mqtt_client.publish(AGENT_RESPONSES_TOPIC, response_payload)
 
     def _execute_command(self, command: AgentCommand):
@@ -124,7 +125,7 @@ class CommandHandler:
         logger.debug(msg)
         payload = SystemResponse(
             timestamp=self.factory.env.now, command_id=command_id, response=msg
-        ).model_dump_json()
+        ).json()
         self.mqtt_client.publish(AGENT_RESPONSES_TOPIC, payload)
         return True
 
@@ -142,7 +143,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
 
@@ -153,7 +154,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
 
@@ -169,7 +170,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=message,
-                ).model_dump_json(),
+                ).json(),
             )
             return success, message
 
@@ -192,7 +193,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         if agv_id not in self.factory.agvs:
@@ -204,7 +205,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=f"AGV {agv_id} not found in factory",
-                ).model_dump_json(),
+                ).json(),
             )
             return
         agv = self.factory.agvs[agv_id]
@@ -218,7 +219,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=f"Device {device_id} not found in factory",
-                ).model_dump_json(),
+                ).json(),
             )
             return
         logger.info(
@@ -235,7 +236,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=message,
-                ).model_dump_json(),
+                ).json(),
             )
             return success, message
 
@@ -256,7 +257,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         if agv_id not in self.factory.agvs:
@@ -266,7 +267,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         agv = self.factory.agvs[agv_id]
@@ -278,7 +279,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         logger.info(
@@ -293,7 +294,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=message,
-                ).model_dump_json(),
+                ).json(),
             )
             return success, message
 
@@ -313,7 +314,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         if agv_id not in self.factory.agvs:
@@ -323,7 +324,7 @@ class CommandHandler:
                 AGENT_RESPONSES_TOPIC,
                 SystemResponse(
                     timestamp=self.factory.env.now, command_id=command_id, response=msg
-                ).model_dump_json(),
+                ).json(),
             )
             return
         agv = self.factory.agvs[agv_id]
@@ -336,7 +337,7 @@ class CommandHandler:
                     timestamp=self.factory.env.now,
                     command_id=command_id,
                     response=message,
-                ).model_dump_json(),
+                ).json(),
             )
             return success, message
 
@@ -413,7 +414,7 @@ class CommandHandler:
                     timestamp=env.now,
                     command_id=command_id,
                     response=f"[{idx + 1}/{len(actions)}] {act_type}: {feedback}",
-                ).model_dump_json()
+                ).json()
                 self.mqtt_client.publish(AGENT_RESPONSES_TOPIC, resp)
                 # 若失败则中断后续
                 if not success:
