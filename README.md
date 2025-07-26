@@ -41,7 +41,7 @@ uv run run_multi_line_simulation.py (--menu) (--no-mqtt)
 
    "wss":{
    "port": 8084,
-   "host": "supos-ce-instance4.supos.app",
+   "host": "ec2-13-212-179-9.ap-southeast-1.compute.amazonaws.com",
    "client*id": "\*\*\_NLDF2_mqtt_wss_test*\*\*",
    ......
    },
